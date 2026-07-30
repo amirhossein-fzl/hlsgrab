@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs, io::Write, path::Path, process::exit, time::Duration};
 
 use clap::Args;
-use cliclack::{multi_progress, outro, progress_bar, select};
+use cliclack::{ProgressBar, multi_progress, outro, progress_bar, select};
 use reqwest::Url;
 
 use crate::{
@@ -306,48 +306,13 @@ pub async fn download_media_playlist(
         let file_progress = multi.add(progress_bar(0).with_download_template());
         file_progress.start(segment_filename.clone());
 
-        let mut last_reported: u64 = 0;
-
-        let progress_action = |progress: ProgressUpdate | {
-            if let Some(total) = progress.total_bytes {
-                file_progress.set_length(total);
-            }
-
-            let delta = progress.bytes_downloaded.saturating_sub(last_reported);
-            if delta > 0 {
-                file_progress.inc(delta);
-                last_reported = progress.bytes_downloaded;
-            }
-        };
-
         let up_segment = Url::parse(&url).or_fail("Invalid segment url");
         if args.continue_download && output_directory.join(filename_from_url(&up_segment).or_fail("Can't find egment file name")).exists() {
             segments_progress.inc(1);
             continue;
         }
 
-        let download_result = download_to_file(client, &url, output_directory, progress_action)
-        .await;
-
-        match download_result {
-            Ok(_) => {
-                file_progress.stop("");
-            }
-            Err(DownloaderError::BadStatus(status)) => {
-                file_progress.stop(format!("{segment_filename} FAILED (HTTP {status})"));
-                eprintln!(
-                    "Warning: segment {} returned HTTP {status}, skipping.",
-                    url
-                );
-            }
-            Err(err) => {
-                file_progress.stop(format!("{segment_filename} FAILED ({err})"));
-                eprintln!("Warning: failed to download segment {}: {err}", url);
-            }
-        }
-
-        segments_progress.inc(1);
-        segments_progress.start(format!("{}/{total_segments} segments", index + 1));
+        download_segment(&client, &url, &output_directory, total_segments, index, segment_filename, &file_progress, &segments_progress).await
     }
 
     segments_progress.stop(format!("{label}: segments downloaded"));
@@ -370,4 +335,52 @@ async fn download_maps(client: &DownloaderClient, maps: HashMap<String, String>,
             .await.or_fail("Can't download map.");
         }
     }
+}
+
+fn progress_action(file_progress: &ProgressBar, progress: ProgressUpdate, last_reported: &mut u64) {
+    if let Some(total) = progress.total_bytes {
+        file_progress.set_length(total);
+    }
+
+    let delta = progress.bytes_downloaded.saturating_sub(*last_reported);
+    if delta > 0 {
+        file_progress.inc(delta);
+        *last_reported = progress.bytes_downloaded;
+    }
+}
+
+async fn download_segment(
+    client: &DownloaderClient,
+    url: &str,
+    output_directory: &Path,
+    total_segments: usize,
+    index: usize,
+    segment_filename: &str,
+    file_progress: &ProgressBar,
+    segments_progress: &ProgressBar,
+) 
+{
+    let mut last_reported: u64 = 0;
+    loop {
+        let download_result = download_to_file(client, &url, output_directory, |progress: ProgressUpdate| {
+            progress_action(&file_progress, progress, &mut last_reported);
+        })
+        .await;
+
+        match download_result {
+            Ok(_) => {
+                file_progress.stop("");
+                break;
+            }
+            Err(err) => {
+                file_progress.stop(format!("{segment_filename} FAILED ({err})"));
+                eprintln!("Warning: failed to download segment {}: {err}", url);
+                last_reported = 0;
+            }
+        }
+    }
+    
+
+    segments_progress.inc(1);
+    segments_progress.start(format!("{}/{total_segments} segments", index + 1));
 }
