@@ -8,7 +8,6 @@ use crate::downloader::proxy::ProxyConfig;
 pub struct DownloaderClientBuilder {
     headers: HeaderMap,
     timeout: Option<Duration>,
-    connect_timeout: Option<Duration>,
     proxy: Option<ProxyConfig>,
 }
 
@@ -17,7 +16,6 @@ impl DownloaderClientBuilder {
         Self {
             headers: HeaderMap::new(),
             timeout: None,
-            connect_timeout: None,
             proxy: None,        }
     }
 
@@ -54,11 +52,6 @@ impl DownloaderClientBuilder {
         self
     }
 
-    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
-        self.connect_timeout = Some(timeout);
-        self
-    }
-
     pub fn proxy(mut self, proxy: &str) -> Result<Self, DownloaderError> {
         self.proxy = Some(ProxyConfig::parse(proxy)?);
         Ok(self)
@@ -70,9 +63,6 @@ impl DownloaderClientBuilder {
 
         if let Some(t) = self.timeout {
             builder = builder.timeout(t);
-        }
-        if let Some(t) = self.connect_timeout {
-            builder = builder.connect_timeout(t);
         }
         if let Some(proxy_cfg) = self.proxy {
             let proxy = proxy_cfg.into_reqwest_proxy()?;
