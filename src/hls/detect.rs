@@ -19,8 +19,9 @@ const MEDIA_INDICATOR_TAGS: &[&str] = &[
     "#EXT-X-BYTERANGE",
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum DetectError {
+    #[error("The file is not m3u8 format.")]
     NotM3u8,
 }
 
