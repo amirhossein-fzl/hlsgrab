@@ -4,16 +4,17 @@ use std::path::{Path, PathBuf};
 use futures_util::StreamExt;
 use reqwest::Url;
 use reqwest::header::CONTENT_LENGTH;
-use tokio::fs::OpenOptions;
-use tokio::io::AsyncWriteExt;
+use std::io::Write;
 
 use crate::downloader::client::DownloaderClient;
 use crate::downloader::error::DownloaderError;
 use crate::downloader::progress::{ProgressUpdate, SpeedTracker};
+use crate::utils::temp::SafeTempFile;
 
 /// Result of a successful download.
-pub enum DownloadOutput {
-    File { path: PathBuf, bytes_written: u64 },
+pub struct DownloadedFile {
+    pub path: PathBuf,
+    pub bytes_written: u64,
 }
 
 pub async fn download<F>(
@@ -22,7 +23,7 @@ pub async fn download<F>(
     output_dir: &Path,
     filename: &str,
     mut on_progress: F,
-) -> Result<DownloadOutput, DownloaderError>
+) -> Result<DownloadedFile, DownloaderError>
 where
     F: FnMut(ProgressUpdate),
 {
@@ -45,16 +46,7 @@ where
 
     let output_file_path = output_dir.join(filename);
 
-    let mut file_handle = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(output_file_path.clone())
-        .await
-        .map_err(|e| DownloaderError::Io {
-            path: output_file_path.to_path_buf(),
-            source: e,
-        })?;
+    let mut file_handle = SafeTempFile::new(output_file_path.clone()).unwrap();
 
     let mut bytes_so_far: u64 = 0;
     let mut speed_tracker = SpeedTracker::new();
@@ -64,7 +56,7 @@ where
         let chunk = chunk_result.map_err(DownloaderError::Request)?;
 
         let f = &mut file_handle;
-        f.write_all(&chunk).await.map_err(|e| DownloaderError::Io {
+        f.write_all(&chunk).map_err(|e| DownloaderError::Io {
             path: output_file_path.to_path_buf(),
             source: e,
         })?;
@@ -88,12 +80,9 @@ where
         });
     }
 
-    file_handle.flush().await.map_err(|e| DownloaderError::Io {
-        path: output_file_path.to_path_buf(),
-        source: e,
-    })?;
+    file_handle.commit().unwrap();
 
-    Ok(DownloadOutput::File {
+    Ok(DownloadedFile {
         path: output_file_path.to_path_buf(),
         bytes_written: bytes_so_far,
     })
@@ -104,7 +93,7 @@ pub async fn download_to_file<F>(
     url: &str,
     directory: &Path,
     on_progress: F,
-) -> Result<u64, DownloaderError>
+) -> Result<DownloadedFile, DownloaderError>
 where
     F: FnMut(ProgressUpdate),
 {
@@ -115,7 +104,5 @@ where
     let parsed_url = Url::parse(&url).expect("Error");
     let filename = Path::new(parsed_url.path()).file_name().unwrap().to_str().unwrap();
 
-    match download(client, url, directory.as_ref(), filename, on_progress).await? {
-        DownloadOutput::File { bytes_written, .. } => Ok(bytes_written),
-    }
+    download(client, url, directory.as_ref(), filename, on_progress).await
 }
