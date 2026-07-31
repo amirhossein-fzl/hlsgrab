@@ -62,7 +62,7 @@ impl DownloaderClientBuilder {
             .default_headers(self.headers);
 
         if let Some(t) = self.timeout {
-            builder = builder.timeout(t);
+            builder = builder.connect_timeout(t);
         }
         if let Some(proxy_cfg) = self.proxy {
             let proxy = proxy_cfg.into_reqwest_proxy()?;
