@@ -102,7 +102,11 @@ where
     }
 
     let parsed_url = Url::parse(&url).expect("Error");
-    let filename = Path::new(parsed_url.path()).file_name().unwrap().to_str().unwrap();
+    let filename = Path::new(parsed_url.path())
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
 
     download(client, url, directory.as_ref(), filename, on_progress).await
 }

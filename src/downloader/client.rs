@@ -16,7 +16,8 @@ impl DownloaderClientBuilder {
         Self {
             headers: HeaderMap::new(),
             timeout: None,
-            proxy: None,        }
+            proxy: None,
+        }
     }
 
     pub fn header(mut self, name: &str, value: &str) -> Result<Self, DownloaderError> {
@@ -58,8 +59,7 @@ impl DownloaderClientBuilder {
     }
 
     pub fn build(self) -> Result<DownloaderClient, DownloaderError> {
-        let mut builder = reqwest::Client::builder()
-            .default_headers(self.headers);
+        let mut builder = reqwest::Client::builder().default_headers(self.headers);
 
         if let Some(t) = self.timeout {
             builder = builder.connect_timeout(t);
@@ -71,8 +71,7 @@ impl DownloaderClientBuilder {
 
         let client = builder.build().map_err(DownloaderError::ClientBuild)?;
 
-        Ok(DownloaderClient {
-            client,        })
+        Ok(DownloaderClient { client })
     }
 }
 

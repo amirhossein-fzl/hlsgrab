@@ -5,9 +5,21 @@ use cliclack::{ProgressBar, multi_progress, outro, progress_bar, select};
 use reqwest::Url;
 
 use crate::{
-    downloader::{client::DownloaderClient, download::{download, download_to_file}, error::DownloaderError, progress::ProgressUpdate}, hls::{
-        detect::detect_m3u8_kind, localize::render_localized_playlist, master::parse_master_playlist, media::parse_media_playlist, types::{M3u8Kind, MasterPlaylist, MediaPlaylist, MediaRendition, MediaType, VariantStream}
-    }, utils::{http::parse_header, url::filename_from_url},
+    downloader::{
+        client::DownloaderClient,
+        download::{download, download_to_file},
+        progress::ProgressUpdate,
+    },
+    hls::{
+        detect::detect_m3u8_kind,
+        localize::render_localized_playlist,
+        master::parse_master_playlist,
+        media::parse_media_playlist,
+        types::{
+            M3u8Kind, MasterPlaylist, MediaPlaylist, MediaRendition, MediaType, VariantStream,
+        },
+    },
+    utils::{http::parse_header, url::filename_from_url},
 };
 
 #[derive(Debug, Args, Clone)]
@@ -76,9 +88,7 @@ fn build_client(args: &DownloadArgs) -> DownloaderClient {
     let mut builder = DownloaderClient::builder().timeout(Duration::from_secs(args.timeout));
 
     if !args.proxy.is_empty() {
-        builder = builder
-            .proxy(&args.proxy)
-            .or_fail("Invalid proxy url");
+        builder = builder.proxy(&args.proxy).or_fail("Invalid proxy url");
     }
 
     if !args.cookies.is_empty() {
@@ -119,14 +129,7 @@ pub async fn handle_download_action(args: &DownloadArgs) {
             handle_master_playlist(&client, &master, &output_directory, args).await;
         }
         M3u8Kind::MediaPlaylist => {
-            download_media_playlist(
-                &client,
-                &args.url,
-                &output_directory,
-                "video",
-                args,
-            )
-            .await;
+            download_media_playlist(&client, &args.url, &output_directory, "video", args).await;
         }
         M3u8Kind::Unknown => fail("This m3u8 is unknown."),
     }
@@ -191,7 +194,11 @@ async fn handle_master_playlist(
         _ => {
             let audio_items: Vec<(&String, String, String)> = audio_renditions
                 .iter()
-                .filter_map(|r| r.url.as_ref().map(|u| (u, describe_rendition(r), String::new())))
+                .filter_map(|r| {
+                    r.url
+                        .as_ref()
+                        .map(|u| (u, describe_rendition(r), String::new()))
+                })
                 .collect();
 
             if audio_items.is_empty() {
@@ -280,7 +287,10 @@ pub async fn download_media_playlist(
     let media_playlist: MediaPlaylist = parse_media_playlist(&playlist_text, Some(url));
     let localized_playlist = render_localized_playlist(&media_playlist);
 
-    fs::File::create(&output_directory.join("playlist.m3u8")).unwrap().write_all(localized_playlist.content.as_bytes()).or_fail("Error in make playlist file.");
+    fs::File::create(&output_directory.join("playlist.m3u8"))
+        .unwrap()
+        .write_all(localized_playlist.content.as_bytes())
+        .or_fail("Error in make playlist file.");
 
     if localized_playlist.segments.is_empty() {
         eprintln!("Warning: {label} playlist has no segments, skipping.");
@@ -307,32 +317,56 @@ pub async fn download_media_playlist(
         file_progress.start(segment_filename.clone());
 
         let up_segment = Url::parse(&url).or_fail("Invalid segment url");
-        if args.continue_download && output_directory.join(filename_from_url(&up_segment).or_fail("Can't find egment file name")).exists() {
+        if args.continue_download
+            && output_directory
+                .join(filename_from_url(&up_segment).or_fail("Can't find egment file name"))
+                .exists()
+        {
             segments_progress.inc(1);
             continue;
         }
 
-        download_segment(&client, &url, &output_directory, total_segments, index, segment_filename, &file_progress, &segments_progress).await
+        download_segment(
+            &client,
+            &url,
+            &output_directory,
+            total_segments,
+            index,
+            segment_filename,
+            &file_progress,
+            &segments_progress,
+        )
+        .await
     }
 
     segments_progress.stop(format!("{label}: segments downloaded"));
     multi.stop();
 }
 
-async fn download_keys(client: &DownloaderClient, keys: HashMap<String, String>, output_directory: &Path) {
+async fn download_keys(
+    client: &DownloaderClient,
+    keys: HashMap<String, String>,
+    output_directory: &Path,
+) {
     for (filename, key_url) in keys {
         if !output_directory.join(&filename).exists() {
-            download(client, &key_url, output_directory, &filename, |_|{})
-            .await.or_fail("Can't download key.");
+            download(client, &key_url, output_directory, &filename, |_| {})
+                .await
+                .or_fail("Can't download key.");
         }
     }
 }
 
-async fn download_maps(client: &DownloaderClient, maps: HashMap<String, String>, output_directory: &Path) {
+async fn download_maps(
+    client: &DownloaderClient,
+    maps: HashMap<String, String>,
+    output_directory: &Path,
+) {
     for (filename, key_url) in maps {
         if !output_directory.join(&filename).exists() {
-            download(client, &key_url, output_directory, &filename, |_|{})
-            .await.or_fail("Can't download map.");
+            download(client, &key_url, output_directory, &filename, |_| {})
+                .await
+                .or_fail("Can't download map.");
         }
     }
 }
@@ -358,13 +392,17 @@ async fn download_segment(
     segment_filename: &str,
     file_progress: &ProgressBar,
     segments_progress: &ProgressBar,
-) 
-{
+) {
     let mut last_reported: u64 = 0;
     loop {
-        let download_result = download_to_file(client, &url, output_directory, |progress: ProgressUpdate| {
-            progress_action(&file_progress, progress, &mut last_reported);
-        })
+        let download_result = download_to_file(
+            client,
+            &url,
+            output_directory,
+            |progress: ProgressUpdate| {
+                progress_action(&file_progress, progress, &mut last_reported);
+            },
+        )
         .await;
 
         match download_result {
@@ -379,7 +417,6 @@ async fn download_segment(
             }
         }
     }
-    
 
     segments_progress.inc(1);
     segments_progress.start(format!("{}/{total_segments} segments", index + 1));

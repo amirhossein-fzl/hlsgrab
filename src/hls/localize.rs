@@ -38,11 +38,17 @@ pub struct RenderedLocalizedPlaylist {
 /// (e.g. the common case of one key for the whole playlist).
 fn local_key_filename(segments_count: usize, index: usize) -> String {
     // format!("key_{:03}.bin", index)
-    format!("key_{}.bin", pad_with_zeros(count_digits(segments_count as i64) as usize, index as u64))
+    format!(
+        "key_{}.bin",
+        pad_with_zeros(count_digits(segments_count as i64) as usize, index as u64)
+    )
 }
 
 fn local_map_filename(segments_count: usize, index: usize) -> String {
-    format!("init_{}.mp4", pad_with_zeros(count_digits(segments_count as i64) as usize, index as u64))
+    format!(
+        "init_{}.mp4",
+        pad_with_zeros(count_digits(segments_count as i64) as usize, index as u64)
+    )
 }
 
 /// Renders a `MediaPlaylist` as m3u8 text with all remote URIs (segments,
@@ -91,8 +97,23 @@ pub fn render_localized_playlist(playlist: &MediaPlaylist) -> RenderedLocalizedP
     let mut segs: Vec<(String, String)> = vec![];
 
     for segment in &playlist.segments {
-        write_key_tag_if_changed(&mut out, segment, &mut last_key, &mut last_key_is_none, &mut key_names, *segments_count, &mut keys);
-        write_map_tag_if_changed(&mut out, segment, &mut last_map_url, &mut map_names, *segments_count, &mut maps);
+        write_key_tag_if_changed(
+            &mut out,
+            segment,
+            &mut last_key,
+            &mut last_key_is_none,
+            &mut key_names,
+            *segments_count,
+            &mut keys,
+        );
+        write_map_tag_if_changed(
+            &mut out,
+            segment,
+            &mut last_map_url,
+            &mut map_names,
+            *segments_count,
+            &mut maps,
+        );
 
         if segment.discontinuity {
             out.push_str("#EXT-X-DISCONTINUITY\n");
@@ -112,7 +133,12 @@ pub fn render_localized_playlist(playlist: &MediaPlaylist) -> RenderedLocalizedP
 
         match &segment.title {
             Some(title) => {
-                let _ = writeln!(out, "#EXTINF:{},{}", format_duration(segment.duration), title);
+                let _ = writeln!(
+                    out,
+                    "#EXTINF:{},{}",
+                    format_duration(segment.duration),
+                    title
+                );
             }
             None => {
                 let _ = writeln!(out, "#EXTINF:{},", format_duration(segment.duration));
@@ -167,9 +193,10 @@ fn write_key_tag_if_changed<'a>(
             if changed {
                 let mut attrs = format!("METHOD={}", key.method);
                 if let Some(uri) = &key.uri {
-                    let local_name = key_names.clone()
+                    let local_name = key_names
+                        .clone()
                         .entry(uri.clone())
-                        .or_insert_with(|| local_key_filename(segments_count ,key_names.len()))
+                        .or_insert_with(|| local_key_filename(segments_count, key_names.len()))
                         .clone();
                     let _ = write!(attrs, ",URI=\"{}\"", local_name);
                     let _ = &keys.insert(local_name, uri.clone());
@@ -205,7 +232,8 @@ fn write_map_tag_if_changed<'a>(
             None => true,
         };
         if changed {
-            let local_name = map_names.clone()
+            let local_name = map_names
+                .clone()
                 .entry(map.url.clone())
                 .or_insert_with(|| local_map_filename(segments_count, map_names.len()))
                 .clone();
@@ -258,7 +286,8 @@ https://cdn.example.com/video/seg0.ts
 https://cdn.example.com/video/seg1.ts
 #EXT-X-ENDLIST
 ";
-        let playlist = parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
+        let playlist =
+            parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
         let rendered = render_localized_playlist(&playlist);
 
         assert!(rendered.content.contains("seg_00000000.ts"));
@@ -278,12 +307,17 @@ https://cdn.example.com/video/seg1.ts
 https://cdn.example.com/video/seg0.ts
 #EXT-X-ENDLIST
 ";
-        let playlist = parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
+        let playlist =
+            parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
         let rendered = render_localized_playlist(&playlist);
 
         assert!(rendered.content.contains("#EXT-X-KEY:METHOD=AES-128"));
         assert!(rendered.content.contains("URI=\"key_000.bin\""));
-        assert!(rendered.content.contains("IV=0x00000000000000000000000000000001"));
+        assert!(
+            rendered
+                .content
+                .contains("IV=0x00000000000000000000000000000001")
+        );
         assert!(!rendered.content.contains("cdn.example.com"));
     }
 
@@ -318,7 +352,8 @@ seg1.ts
 seg2.ts
 #EXT-X-ENDLIST
 ";
-        let playlist = parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
+        let playlist =
+            parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
         let rendered = render_localized_playlist(&playlist);
 
         // The key tag (and therefore the local filename it assigns) should
@@ -343,16 +378,29 @@ seg0.ts
 seg1.ts
 #EXT-X-ENDLIST
 ";
-        let playlist = parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
+        let playlist =
+            parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
         let rendered = render_localized_playlist(&playlist);
 
         // seg0 should be preceded by the AES-128 key tag; seg1 should be
         // preceded by an explicit METHOD=NONE reset since the source
         // playlist explicitly turned encryption off mid-stream.
-        let key_pos = rendered.content.find("#EXT-X-KEY:METHOD=AES-128").expect("expected key tag");
-        let none_pos = rendered.content.find("#EXT-X-KEY:METHOD=NONE").expect("expected none tag");
-        let seg0_pos = rendered.content.find("seg_00000000.ts").expect("expected seg0");
-        let seg1_pos = rendered.content.find("seg_00000001.ts").expect("expected seg1");
+        let key_pos = rendered
+            .content
+            .find("#EXT-X-KEY:METHOD=AES-128")
+            .expect("expected key tag");
+        let none_pos = rendered
+            .content
+            .find("#EXT-X-KEY:METHOD=NONE")
+            .expect("expected none tag");
+        let seg0_pos = rendered
+            .content
+            .find("seg_00000000.ts")
+            .expect("expected seg0");
+        let seg1_pos = rendered
+            .content
+            .find("seg_00000001.ts")
+            .expect("expected seg1");
 
         assert!(key_pos < seg0_pos);
         assert!(seg0_pos < none_pos);
@@ -373,12 +421,16 @@ seg0.ts
 seg1.ts
 #EXT-X-ENDLIST
 ";
-        let playlist = parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
+        let playlist =
+            parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
         let rendered = render_localized_playlist(&playlist);
 
         assert!(rendered.content.contains("key_000.bin"));
         assert!(rendered.content.contains("key_001.bin"));
-        let occurrences = rendered.content.matches("#EXT-X-KEY:METHOD=AES-128").count();
+        let occurrences = rendered
+            .content
+            .matches("#EXT-X-KEY:METHOD=AES-128")
+            .count();
         assert_eq!(occurrences, 2);
     }
 
@@ -393,10 +445,15 @@ seg1.ts
 seg0.mp4
 #EXT-X-ENDLIST
 ";
-        let playlist = parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
+        let playlist =
+            parse_media_playlist(input, Some("https://cdn.example.com/video/index.m3u8"));
         let rendered = render_localized_playlist(&playlist);
 
-        assert!(rendered.content.contains("#EXT-X-MAP:URI=\"init_000.mp4\",BYTERANGE=\"512@0\""));
+        assert!(
+            rendered
+                .content
+                .contains("#EXT-X-MAP:URI=\"init_000.mp4\",BYTERANGE=\"512@0\"")
+        );
         assert!(!rendered.content.contains("cdn.example.com"));
     }
 
@@ -438,7 +495,11 @@ seg1.ts
         let playlist = parse_media_playlist(input, None);
         let rendered = render_localized_playlist(&playlist);
 
-        assert!(rendered.content.contains("#EXT-X-PROGRAM-DATE-TIME:2024-01-01T00:00:00.000Z"));
+        assert!(
+            rendered
+                .content
+                .contains("#EXT-X-PROGRAM-DATE-TIME:2024-01-01T00:00:00.000Z")
+        );
         assert!(rendered.content.contains("#EXT-X-DISCONTINUITY"));
     }
 

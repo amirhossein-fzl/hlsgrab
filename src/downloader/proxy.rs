@@ -59,12 +59,10 @@ impl ProxyConfig {
         };
 
         let (username, password) = match auth {
-            Some(auth_str) => {
-                match auth_str.split_once(':') {
-                    Some((u, p)) => (Some(u.to_string()), Some(p.to_string())),
-                    None => (Some(auth_str.to_string()), None),
-                }
-            }
+            Some(auth_str) => match auth_str.split_once(':') {
+                Some((u, p)) => (Some(u.to_string()), Some(p.to_string())),
+                None => (Some(auth_str.to_string()), None),
+            },
             None => (None, None),
         };
 

@@ -1,6 +1,6 @@
 use clap::Subcommand;
 
-use crate::cli::commands::{download::DownloadArgs};
+use crate::cli::commands::download::DownloadArgs;
 
 pub mod download;
 

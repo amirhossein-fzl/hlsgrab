@@ -1,6 +1,9 @@
 use clap::Parser;
 
-use crate::cli::{args::Args, commands::{Commands, download::handle_download_action}};
+use crate::cli::{
+    args::Args,
+    commands::{Commands, download::handle_download_action},
+};
 
 #[derive(Debug)]
 pub struct Application {
@@ -12,12 +15,12 @@ impl Application {
         let args = Args::parse();
 
         match args.command {
-            Some(Commands::Download(ref download_args)) => handle_download_action(&download_args).await,
+            Some(Commands::Download(ref download_args)) => {
+                handle_download_action(&download_args).await
+            }
             None => {}
         }
 
-        Self {
-            args,
-        }
+        Self { args }
     }
 }

@@ -190,7 +190,6 @@ impl Drop for SafeTempFile {
     }
 }
 
-
 #[cfg(test)]
 pub(crate) fn pending_count_for_tests() -> usize {
     registry().lock().unwrap().len()
