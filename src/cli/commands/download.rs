@@ -332,7 +332,6 @@ pub async fn download_media_playlist(
             &output_directory,
             total_segments,
             index,
-            segment_filename,
             &file_progress,
             &segments_progress,
         )
@@ -389,7 +388,6 @@ async fn download_segment(
     output_directory: &Path,
     total_segments: usize,
     index: usize,
-    segment_filename: &str,
     file_progress: &ProgressBar,
     segments_progress: &ProgressBar,
 ) {
@@ -410,9 +408,8 @@ async fn download_segment(
                 file_progress.stop("");
                 break;
             }
-            Err(err) => {
-                file_progress.stop(format!("{segment_filename} FAILED ({err})"));
-                eprintln!("Warning: failed to download segment {}: {err}", url);
+            Err(_) => {
+                file_progress.stop("");
                 last_reported = 0;
             }
         }
