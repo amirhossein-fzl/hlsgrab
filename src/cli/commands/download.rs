@@ -79,7 +79,7 @@ impl<T> OrFail<T> for Option<T> {
     fn or_fail(self, context: &str) -> T {
         match self {
             Some(value) => value,
-            None => fail(context.to_string()),
+            None => fail(context),
         }
     }
 }
@@ -120,7 +120,7 @@ pub async fn handle_download_action(args: &DownloadArgs) {
 
     let client = build_client(args);
 
-    let root_playlist = fetch_playlist_text(&client, &url.to_string()).await;
+    let root_playlist = fetch_playlist_text(&client, url.as_ref()).await;
     let kind = detect_m3u8_kind(&root_playlist).or_fail("Error in m3u8 detection");
 
     match kind {
@@ -247,8 +247,13 @@ fn describe_variant(v: &VariantStream) -> String {
     }
 
     if parts.is_empty() {
-        filename_from_url(&Url::parse(&v.url).unwrap_or_else(|_| Url::parse("file:///?").unwrap()))
-            .unwrap_or_else(|| "Unknown variant".to_string())
+        let unknown_variant = "Unknown variant".to_string();
+
+        if let Ok(url) = Url::parse(&v.url) {
+            return filename_from_url(&url).unwrap_or_else(|| unknown_variant.to_owned());
+        }
+
+        unknown_variant
     } else {
         parts.join(", ")
     }
@@ -287,18 +292,19 @@ pub async fn download_media_playlist(
     let media_playlist: MediaPlaylist = parse_media_playlist(&playlist_text, Some(url));
     let localized_playlist = render_localized_playlist(&media_playlist);
 
-    fs::File::create(&output_directory.join("playlist.m3u8"))
-        .unwrap()
+    let mut playlist_file = fs::File::create(output_directory.join("playlist.m3u8"))
+        .or_fail("Error creating playlist file");
+    playlist_file
         .write_all(localized_playlist.content.as_bytes())
-        .or_fail("Error in make playlist file.");
+        .or_fail("Error writing playlist file");
 
     if localized_playlist.segments.is_empty() {
         eprintln!("Warning: {label} playlist has no segments, skipping.");
         return;
     }
 
-    download_keys(&client, localized_playlist.keys, &output_directory).await;
-    download_maps(&client, localized_playlist.maps, &output_directory).await;
+    download_resources(client, localized_playlist.keys, output_directory).await;
+    download_resources(client, localized_playlist.maps, output_directory).await;
 
     let total_segments = localized_playlist.segments.len();
 
@@ -308,7 +314,7 @@ pub async fn download_media_playlist(
     segments_progress.start(format!("0/{total_segments} segments"));
 
     for (index, (segment_filename, url)) in localized_playlist.segments.iter().enumerate() {
-        if args.continue_download && output_directory.join(&segment_filename).exists() {
+        if args.continue_download && output_directory.join(segment_filename).exists() {
             segments_progress.inc(1);
             continue;
         }
@@ -316,20 +322,10 @@ pub async fn download_media_playlist(
         let file_progress = multi.add(progress_bar(0).with_download_template());
         file_progress.start(segment_filename.clone());
 
-        let up_segment = Url::parse(&url).or_fail("Invalid segment url");
-        if args.continue_download
-            && output_directory
-                .join(filename_from_url(&up_segment).or_fail("Can't find egment file name"))
-                .exists()
-        {
-            segments_progress.inc(1);
-            continue;
-        }
-
         download_segment(
-            &client,
-            &url,
-            &output_directory,
+            client,
+            url,
+            output_directory,
             total_segments,
             index,
             &file_progress,
@@ -342,30 +338,16 @@ pub async fn download_media_playlist(
     multi.stop();
 }
 
-async fn download_keys(
+async fn download_resources(
     client: &DownloaderClient,
-    keys: HashMap<String, String>,
+    files: HashMap<String, String>,
     output_directory: &Path,
 ) {
-    for (filename, key_url) in keys {
+    for (filename, url) in files {
         if !output_directory.join(&filename).exists() {
-            download(client, &key_url, output_directory, &filename, |_| {})
+            download(client, &url, output_directory, &filename, |_| {})
                 .await
-                .or_fail("Can't download key.");
-        }
-    }
-}
-
-async fn download_maps(
-    client: &DownloaderClient,
-    maps: HashMap<String, String>,
-    output_directory: &Path,
-) {
-    for (filename, key_url) in maps {
-        if !output_directory.join(&filename).exists() {
-            download(client, &key_url, output_directory, &filename, |_| {})
-                .await
-                .or_fail("Can't download map.");
+                .or_fail(&format!("Can't download {filename}."));
         }
     }
 }
@@ -393,15 +375,11 @@ async fn download_segment(
 ) {
     let mut last_reported: u64 = 0;
     loop {
-        let download_result = download_to_file(
-            client,
-            &url,
-            output_directory,
-            |progress: ProgressUpdate| {
-                progress_action(&file_progress, progress, &mut last_reported);
-            },
-        )
-        .await;
+        let download_result =
+            download_to_file(client, url, output_directory, |progress: ProgressUpdate| {
+                progress_action(file_progress, progress, &mut last_reported);
+            })
+            .await;
 
         match download_result {
             Ok(_) => {
