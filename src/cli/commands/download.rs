@@ -381,16 +381,13 @@ async fn download_segment(
             })
             .await;
 
-        match download_result {
-            Ok(_) => {
-                file_progress.stop("");
-                break;
-            }
-            Err(_) => {
-                file_progress.stop("");
-                last_reported = 0;
-            }
+        if download_result.is_err() {
+            last_reported = 0;
+        } else {
+            break;
         }
+
+        file_progress.stop("");
     }
 
     segments_progress.inc(1);
