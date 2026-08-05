@@ -4,10 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [profile.release]
-strip = true
+strip = "symbols"
+debug = false
 opt-level = "z"
-lto = true
+lto = "fat"
 panic = "abort"
+codegen-units = 1
+split-debuginfo = "unpacked"
 
 [dependencies]
 clap = { version = "4.6.1", features = ["derive"] }
