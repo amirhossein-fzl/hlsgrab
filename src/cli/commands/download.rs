@@ -1,10 +1,11 @@
-use std::{collections::HashMap, fs, io::Write, path::Path, process::exit, time::Duration};
+use std::{collections::HashMap, fs, io::Write, path::Path, time::Duration};
 
 use clap::Args;
 use cliclack::{ProgressBar, multi_progress, outro, progress_bar, select};
 use reqwest::Url;
 
 use crate::{
+    cli::fail::{OrFail, fail},
     downloader::{
         client::DownloaderClient,
         download::{download, download_to_file},
@@ -55,33 +56,6 @@ pub struct DownloadArgs {
     /// Proxy url. [http|socks5://][USER:PASSWORD@]HOST[:PORT]
     #[arg(long, short, value_name = "URL", default_value = "")]
     proxy: String,
-}
-
-fn fail(message: impl AsRef<str>) -> ! {
-    eprintln!("{}", message.as_ref());
-    exit(1);
-}
-
-trait OrFail<T> {
-    fn or_fail(self, context: &str) -> T;
-}
-
-impl<T, E: std::fmt::Display> OrFail<T> for Result<T, E> {
-    fn or_fail(self, context: &str) -> T {
-        match self {
-            Ok(value) => value,
-            Err(err) => fail(format!("{context}: {err}")),
-        }
-    }
-}
-
-impl<T> OrFail<T> for Option<T> {
-    fn or_fail(self, context: &str) -> T {
-        match self {
-            Some(value) => value,
-            None => fail(context),
-        }
-    }
 }
 
 fn build_client(args: &DownloadArgs) -> DownloaderClient {

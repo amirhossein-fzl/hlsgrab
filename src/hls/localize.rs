@@ -22,7 +22,6 @@ use crate::utils::number::{count_digits, pad_with_zeros};
 use crate::utils::url::filename_from_url;
 use std::collections::HashMap;
 use std::fmt::Write as _;
-use std::process::exit;
 
 pub struct RenderedLocalizedPlaylist {
     pub content: String,
