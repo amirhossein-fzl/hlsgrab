@@ -300,6 +300,7 @@ pub async fn download_media_playlist(
             client,
             url,
             output_directory,
+            segment_filename,
             total_segments,
             index,
             &file_progress,
@@ -342,6 +343,7 @@ async fn download_segment(
     client: &DownloaderClient,
     url: &str,
     output_directory: &Path,
+    segment_filename: &str,
     total_segments: usize,
     index: usize,
     file_progress: &ProgressBar,
@@ -350,18 +352,18 @@ async fn download_segment(
     let mut last_reported: u64 = 0;
     loop {
         let download_result =
-            download_to_file(client, url, output_directory, |progress: ProgressUpdate| {
+            download(client, url, output_directory, segment_filename, |progress: ProgressUpdate| {
                 progress_action(file_progress, progress, &mut last_reported);
             })
             .await;
+
+        file_progress.stop("");
 
         if download_result.is_err() {
             last_reported = 0;
         } else {
             break;
         }
-
-        file_progress.stop("");
     }
 
     segments_progress.inc(1);
