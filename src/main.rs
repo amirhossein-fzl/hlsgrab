@@ -3,6 +3,7 @@ use crate::cli::app::Application;
 pub mod cli;
 pub mod downloader;
 pub mod hls;
+pub mod merge;
 pub mod utils;
 
 #[tokio::main]
